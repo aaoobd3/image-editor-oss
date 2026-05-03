@@ -91,8 +91,16 @@ export class Pipeline {
       this.image = uploadImageTexture(gl, image);
     } else {
       // Upload at full res to a temporary texture, then GPU-downsample into
-      // a proxy-sized FBO. The temp texture is released afterwards.
+      // a proxy-sized FBO. NEAREST filtering on the source is critical: with
+      // LINEAR, every texture2D() tap inside the downsample shader would be
+      // a bilinear average of 4 sRGB-encoded texels (gamma-incorrect) BEFORE
+      // we get a chance to convert to linear. NEAREST + per-tap UV snapping
+      // ensures every tap reads a single source texel verbatim.
       const tempTex = uploadImageTexture(gl, image);
+      gl.bindTexture(gl.TEXTURE_2D, tempTex.texture);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+      gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+
       const proxyFBO = createFBO(gl, dstW, dstH);
 
       gl.bindFramebuffer(gl.FRAMEBUFFER, proxyFBO.fbo);
@@ -102,6 +110,7 @@ export class Pipeline {
       gl.bindTexture(gl.TEXTURE_2D, tempTex.texture);
       gl.uniform1i(this.downsampleProg.uniforms.uTex, 0);
       gl.uniform2f(this.downsampleProg.uniforms.uSrcTexel, 1 / srcW, 1 / srcH);
+      gl.uniform2f(this.downsampleProg.uniforms.uSrcSize, srcW, srcH);
       gl.uniform1f(this.downsampleProg.uniforms.uDownscale, srcW / dstW);
       this._drawQuad(this.downsampleProg);
 
