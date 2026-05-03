@@ -35,6 +35,9 @@ editor.onChange((key, value) => {
   valEl.textContent = String(Math.round(raw));
 });
 
+// Must be defined before the preset loop that calls makeThumb → clamp01.
+function clamp01(v) { return Math.max(0, Math.min(1, v)); }
+
 // ---------- Preset grid ----------
 // Build the preset buttons. Thumbnails are generated from the LUT canvas
 // tinted over a neutral grey gradient to give a preview of the color grade.
@@ -115,8 +118,6 @@ function makeThumb(preset) {
   ctx.putImageData(id, 0, 0);
   return cv;
 }
-
-const clamp01 = v => Math.max(0, Math.min(1, v));
 
 // ---------- File picker + drop ----------
 const fileInput = document.getElementById('file-input');
