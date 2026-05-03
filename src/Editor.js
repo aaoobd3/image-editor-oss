@@ -80,11 +80,13 @@ export class Editor {
     if (url == null) {
       this.pipeline.setLUT(null);
       this.state.set('lutEnabled', 0);
-      return;
+    } else {
+      const lut = await loadLUT(url);
+      this.pipeline.setLUT(lut);
+      this.state.set('lutEnabled', 1);
     }
-    const lut = await loadLUT(url);
-    this.pipeline.setLUT(lut);
-    this.state.set('lutEnabled', 1);
+    this.state._dirty = true;
+    this._scheduleRender();
   }
 
   /**
@@ -96,10 +98,14 @@ export class Editor {
     if (!lut) {
       this.pipeline.setLUT(null);
       this.state.set('lutEnabled', 0);
-      return;
+    } else {
+      this.pipeline.setLUT(lut);
+      this.state.set('lutEnabled', 1);
     }
-    this.pipeline.setLUT(lut);
-    this.state.set('lutEnabled', 1);
+    // Force a re-render even if lutEnabled didn't change value (e.g. switching
+    // between presets keeps it at 1, so state.set is a no-op and never sets dirty).
+    this.state._dirty = true;
+    this._scheduleRender();
   }
 
   /**
