@@ -1,0 +1,14 @@
+{
+  "name": "spectra-editor",
+  "version": "0.1.0",
+  "description": "Zero-compromise WebGL image editor with native-quality color science (linear math, Bradford WB, edge-preserving tone, ACES, LUTs).",
+  "type": "module",
+  "main": "src/index.js",
+  "files": ["src", "index.html"],
+  "scripts": {
+    "dev": "python3 -m http.server 8080",
+    "serve": "python3 -m http.server 8080"
+  },
+  "keywords": ["webgl", "image-editor", "color-grading", "lut", "aces", "tone-mapping"],
+  "license": "MIT"
+}

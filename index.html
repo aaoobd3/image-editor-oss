@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>Spectra — Native-Quality Image Editor</title>
+  <link rel="stylesheet" href="demo/styles.css" />
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand">Spectra</div>
+    <div class="actions">
+      <label class="btn">
+        Open
+        <input id="file-input" type="file" accept="image/*" hidden />
+      </label>
+      <button id="reset-btn" class="btn">Reset</button>
+      <button id="export-btn" class="btn primary">Export JPEG</button>
+    </div>
+  </header>
+
+  <main class="layout">
+    <section class="viewport">
+      <canvas id="stage"></canvas>
+      <div id="empty-state" class="empty">
+        <p>Drop an image here or click Open.</p>
+      </div>
+    </section>
+
+    <aside class="sidebar">
+      <details open>
+        <summary>Light</summary>
+        <div class="slider-row" data-key="exposure">
+          <label>Exposure</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="brightness">
+          <label>Brightness</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="contrast">
+          <label>Contrast</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="highlights">
+          <label>Highlights</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="shadows">
+          <label>Shadows</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="whites">
+          <label>Whites</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="blacks">
+          <label>Blacks</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+      </details>
+
+      <details open>
+        <summary>Color</summary>
+        <div class="slider-row" data-key="temperature">
+          <label>Temp</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="tint">
+          <label>Tint</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="vibrance">
+          <label>Vibrance</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="saturation">
+          <label>Saturation</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+      </details>
+
+      <details open>
+        <summary>Detail</summary>
+        <div class="slider-row" data-key="sharpness" data-target="0,1">
+          <label>Sharpness</label>
+          <input type="range" min="0" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+        <div class="slider-row" data-key="definition">
+          <label>Definition</label>
+          <input type="range" min="-100" max="100" value="0" />
+          <span class="val">0</span>
+        </div>
+      </details>
+
+      <details>
+        <summary>Filter (3D LUT)</summary>
+        <div class="lut-row">
+          <input id="lut-url" type="text" placeholder="LUT image URL (.png tile grid)" />
+          <button id="lut-apply" class="btn">Apply</button>
+          <button id="lut-clear" class="btn ghost">Clear</button>
+        </div>
+        <div class="slider-row" data-key="lutIntensity" data-target="0,1">
+          <label>Intensity</label>
+          <input type="range" min="0" max="100" value="100" />
+          <span class="val">100</span>
+        </div>
+      </details>
+    </aside>
+  </main>
+
+  <script type="module" src="demo/main.js"></script>
+</body>
+</html>
