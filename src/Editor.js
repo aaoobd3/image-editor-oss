@@ -37,7 +37,6 @@ export class Editor {
 
     this._sourceImage = null;     // full-resolution HTMLImageElement
     this._sourceBlob = null;      // original Blob/File for downstream re-use
-    this._proxyCanvas = null;     // 2D canvas holding the downscaled proxy
     this._running = false;
     this._rafHandle = 0;
     this._sliderUnbinds = [];
@@ -50,20 +49,26 @@ export class Editor {
 
   /**
    * Load an image from a File / Blob / URL / HTMLImageElement.
-   * Builds the low-res proxy and starts the render loop.
+   *
+   * The full-resolution image is uploaded to the GPU; the pipeline runs a
+   * gamma-correct downsample into a proxy-sized FBO when the long edge
+   * exceeds maxProxyEdge. Earlier versions did the proxy step on a 2D canvas,
+   * which averaged in sRGB-encoded space and visibly desaturated the result.
    */
   async load(source) {
     const img = await coerceToImage(source);
     this._sourceImage = img;
-    if (source instanceof Blob) this._sourceBlob = source;
-    else this._sourceBlob = null;
+    this._sourceBlob = source instanceof Blob ? source : null;
 
-    this._proxyCanvas = makeProxyCanvas(img, this.maxProxyEdge);
-    // Match the canvas backing store to the proxy. The DOM size is left to CSS.
-    this.canvas.width = this._proxyCanvas.width;
-    this.canvas.height = this._proxyCanvas.height;
+    const [pw, ph] = computeProxySize(
+      img.naturalWidth,
+      img.naturalHeight,
+      this.maxProxyEdge,
+    );
+    this.canvas.width = pw;
+    this.canvas.height = ph;
 
-    this.pipeline.setImage(this._proxyCanvas);
+    this.pipeline.setImage(img, { maxEdge: this.maxProxyEdge });
     this.state._dirty = true;
     this.start();
     this._renderOnce();
@@ -210,7 +215,6 @@ export class Editor {
     this.pipeline.dispose();
     this._sourceImage = null;
     this._sourceBlob = null;
-    this._proxyCanvas = null;
   }
 }
 
@@ -248,18 +252,11 @@ function loadImageURL(url) {
   });
 }
 
-function makeProxyCanvas(img, maxEdge) {
-  const w = img.naturalWidth, h = img.naturalHeight;
-  const longest = Math.max(w, h);
-  const scale = longest > maxEdge ? (maxEdge / longest) : 1;
-  const pw = Math.max(1, Math.round(w * scale));
-  const ph = Math.max(1, Math.round(h * scale));
-  const cv = document.createElement('canvas');
-  cv.width = pw;
-  cv.height = ph;
-  const ctx = cv.getContext('2d');
-  ctx.imageSmoothingEnabled = true;
-  ctx.imageSmoothingQuality = 'high';
-  ctx.drawImage(img, 0, 0, pw, ph);
-  return cv;
+function computeProxySize(srcW, srcH, maxEdge) {
+  const longest = Math.max(srcW, srcH);
+  const scale = longest > maxEdge ? maxEdge / longest : 1;
+  return [
+    Math.max(1, Math.round(srcW * scale)),
+    Math.max(1, Math.round(srcH * scale)),
+  ];
 }

@@ -16,6 +16,7 @@ import { VERTEX_SHADER } from './shaders/vertex.js';
 import { BLUR_FRAGMENT, LUMINANCE_BLUR_FRAGMENT } from './shaders/blur.js';
 import { MASTER_FRAGMENT } from './shaders/master.js';
 import { SPATIAL_FRAGMENT } from './shaders/spatial.js';
+import { DOWNSAMPLE_FRAGMENT } from './shaders/downsample.js';
 import { buildChromaticAdaptationMatrix, IDENTITY_CAT } from './WhiteBalance.js';
 
 export class Pipeline {
@@ -26,13 +27,16 @@ export class Pipeline {
     const gl = this.gl;
     this.quad = createFullScreenQuad(gl);
 
-    this.lumBlurProg = createProgram(gl, VERTEX_SHADER, LUMINANCE_BLUR_FRAGMENT);
-    this.blurProg    = createProgram(gl, VERTEX_SHADER, BLUR_FRAGMENT);
-    this.masterProg  = createProgram(gl, VERTEX_SHADER, MASTER_FRAGMENT);
-    this.spatialProg = createProgram(gl, VERTEX_SHADER, SPATIAL_FRAGMENT);
+    this.lumBlurProg    = createProgram(gl, VERTEX_SHADER, LUMINANCE_BLUR_FRAGMENT);
+    this.blurProg       = createProgram(gl, VERTEX_SHADER, BLUR_FRAGMENT);
+    this.masterProg     = createProgram(gl, VERTEX_SHADER, MASTER_FRAGMENT);
+    this.spatialProg    = createProgram(gl, VERTEX_SHADER, SPATIAL_FRAGMENT);
+    this.downsampleProg = createProgram(gl, VERTEX_SHADER, DOWNSAMPLE_FRAGMENT);
 
-    // Lazily allocated when an image is bound.
-    this.image = null;       // { texture, width, height }
+    // Lazily allocated when an image is bound. `image.fbo` is set when the
+    // image was produced by the GPU downsample pass (in which case both fbo
+    // and texture must be released on replacement).
+    this.image = null;       // { texture, width, height, fbo? }
     this.fboLuma = null;     // ping-pong target A (luminance blurred)
     this.fboLumaTmp = null;  // ping-pong target for the horizontal pass
     this.fboMaster = null;   // master shader output
@@ -57,13 +61,70 @@ export class Pipeline {
     this.targetH = h;
   }
 
-  /** Bind a source image (HTMLImageElement / ImageBitmap / HTMLCanvasElement). */
-  setImage(image) {
+  /**
+   * Bind a source image (HTMLImageElement / ImageBitmap / HTMLCanvasElement).
+   *
+   * @param {object} [opts]
+   * @param {number} [opts.maxEdge] - if set and the image's longest edge is
+   *   greater than this, run a gamma-correct GPU downsample pass to a proxy
+   *   FBO of that size and use it as the working texture. Skipping the 2D
+   *   canvas drawImage step preserves saturation (drawImage averages in
+   *   sRGB-encoded space, which desaturates the result).
+   */
+  setImage(image, opts = {}) {
     const gl = this.gl;
-    if (this.image) gl.deleteTexture(this.image.texture);
-    this.image = uploadImageTexture(gl, image);
+    this._releaseImage();
+
+    const srcW = image.naturalWidth || image.width;
+    const srcH = image.naturalHeight || image.height;
+    const maxEdge = opts.maxEdge;
+
+    let dstW = srcW, dstH = srcH;
+    if (maxEdge && Math.max(srcW, srcH) > maxEdge) {
+      const scale = maxEdge / Math.max(srcW, srcH);
+      dstW = Math.max(1, Math.round(srcW * scale));
+      dstH = Math.max(1, Math.round(srcH * scale));
+    }
+
+    if (dstW === srcW && dstH === srcH) {
+      // No downsampling needed (export path / small images): direct upload.
+      this.image = uploadImageTexture(gl, image);
+    } else {
+      // Upload at full res to a temporary texture, then GPU-downsample into
+      // a proxy-sized FBO. The temp texture is released afterwards.
+      const tempTex = uploadImageTexture(gl, image);
+      const proxyFBO = createFBO(gl, dstW, dstH);
+
+      gl.bindFramebuffer(gl.FRAMEBUFFER, proxyFBO.fbo);
+      gl.viewport(0, 0, dstW, dstH);
+      gl.useProgram(this.downsampleProg.program);
+      gl.activeTexture(gl.TEXTURE0);
+      gl.bindTexture(gl.TEXTURE_2D, tempTex.texture);
+      gl.uniform1i(this.downsampleProg.uniforms.uTex, 0);
+      gl.uniform2f(this.downsampleProg.uniforms.uSrcTexel, 1 / srcW, 1 / srcH);
+      gl.uniform1f(this.downsampleProg.uniforms.uDownscale, srcW / dstW);
+      this._drawQuad(this.downsampleProg);
+
+      gl.deleteTexture(tempTex.texture);
+
+      this.image = {
+        texture: proxyFBO.texture,
+        width: dstW,
+        height: dstH,
+        fbo: proxyFBO.fbo,
+      };
+    }
+
     this._ensureFBOs(this.image.width, this.image.height);
     this._lumaDirty = true;
+  }
+
+  _releaseImage() {
+    const gl = this.gl;
+    if (!this.image) return;
+    if (this.image.fbo) gl.deleteFramebuffer(this.image.fbo);
+    gl.deleteTexture(this.image.texture);
+    this.image = null;
   }
 
   /** Bind a LUT object returned by loadLUT(). Pass null to clear. */
@@ -213,12 +274,13 @@ export class Pipeline {
 
   dispose() {
     const gl = this.gl;
-    if (this.image) gl.deleteTexture(this.image.texture);
+    this._releaseImage();
     if (this.lut) gl.deleteTexture(this.lut.texture);
     for (const fbo of [this.fboLuma, this.fboLumaTmp, this.fboMaster]) {
       if (fbo) { gl.deleteFramebuffer(fbo.fbo); gl.deleteTexture(fbo.texture); }
     }
-    for (const p of [this.lumBlurProg, this.blurProg, this.masterProg, this.spatialProg]) {
+    for (const p of [this.lumBlurProg, this.blurProg, this.masterProg,
+                     this.spatialProg, this.downsampleProg]) {
       if (p) gl.deleteProgram(p.program);
     }
     gl.deleteBuffer(this.quad);
