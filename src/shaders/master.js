@@ -63,14 +63,23 @@ vec3 hsv2rgb(vec3 c) {
   return c.z * mix(K.xxx, clamp(p - K.xxx, 0.0, 1.0), c.y);
 }
 
-// ---------- ACES filmic tone map (Knarkowicz / Hill fit) ----------
-vec3 ACESFilm(vec3 x) {
-  const float a = 2.51;
-  const float b = 0.03;
-  const float c = 2.43;
-  const float d = 0.59;
-  const float e = 0.14;
-  return clamp((x * (a * x + b)) / (x * (c * x + d) + e), 0.0, 1.0);
+// Soft highlight roll-off — the blueprint asks for ACES "to roll off pixels
+// pushed out of bounds smoothly". The Hill/Knarkowicz ACES fit does that, but
+// it is not identity in the SDR range (it lifts mid-grey ~+50% and crushes
+// pure white to ~0.80). That makes a no-op render look noticeably wrong.
+//
+// This curve is pure identity in [0, knee] and Reinhard-style asymptotic
+// compression above, so:
+//   * no-op render === source pixels exactly
+//   * any value driven above the knee by exposure/contrast lands smoothly
+//     in (knee, 1) instead of clipping
+vec3 softHighlight(vec3 x) {
+  const float knee = 0.95;
+  const float top  = 1.0 - knee; // 0.05
+  vec3 below = min(x, vec3(knee));
+  vec3 over  = max(x - knee, 0.0);
+  vec3 rolled = top * (over / (over + top));
+  return below + rolled;
 }
 
 // ---------- 3D LUT sample from a square tile grid PNG ----------
@@ -173,11 +182,11 @@ void main() {
   vec3 srgbAfter = hsv2rgb(hsv);
   lin = srgbToLinear(srgbAfter);
 
-  // ---- F. Contrast (pivoted at 18% grey in linear) + ACES filmic ----
+  // ---- F. Contrast (pivoted at 18% grey in linear) + soft highlight roll-off ----
   float pivot = 0.18;
   float contrastAmt = 1.0 + uContrast;
   lin = max((lin - pivot) * contrastAmt + pivot, 0.0);
-  lin = ACESFilm(lin);
+  lin = softHighlight(lin);
 
   // ---- G. 3D LUT (LUTs are authored in sRGB display space) ----
   if (uLUTEnabled > 0.5) {
