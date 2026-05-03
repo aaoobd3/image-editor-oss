@@ -105,13 +105,9 @@
         </div>
       </details>
 
-      <details>
-        <summary>Filter (3D LUT)</summary>
-        <div class="lut-row">
-          <input id="lut-url" type="text" placeholder="LUT image URL (.png tile grid)" />
-          <button id="lut-apply" class="btn">Apply</button>
-          <button id="lut-clear" class="btn ghost">Clear</button>
-        </div>
+      <details open>
+        <summary>Filters</summary>
+        <div id="preset-grid" class="preset-grid"></div>
         <div class="slider-row" data-key="lutIntensity" data-target="0,1">
           <label>Intensity</label>
           <input type="range" min="0" max="100" value="100" />

@@ -88,6 +88,21 @@ export class Editor {
   }
 
   /**
+   * Apply a pre-built LUT object (from Presets.getPresetLUT or loadLUT).
+   * Pass null to clear.
+   * @param {{ image, size, tilesPerRow }|null} lut
+   */
+  applyLUTData(lut) {
+    if (!lut) {
+      this.pipeline.setLUT(null);
+      this.state.set('lutEnabled', 0);
+      return;
+    }
+    this.pipeline.setLUT(lut);
+    this.state.set('lutEnabled', 1);
+  }
+
+  /**
    * Bind an HTML <input type="range"> (or any element with a value/property)
    * to a state key. The slider's domain is mapped onto the state range.
    *
